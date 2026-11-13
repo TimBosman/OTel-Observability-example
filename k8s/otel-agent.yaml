@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-agent
+  namespace: otel
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-agent
+rules:
+  # k8sattributes processor
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  # kubeletstats receiver
+  - apiGroups: [""]
+    resources: ["nodes/stats", "nodes/proxy", "nodes/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-agent
+subjects:
+  - kind: ServiceAccount
+    name: otel-agent
+    namespace: otel
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+  namespace: otel
+  labels:
+    app: otel-agent
+spec:
+  selector:
+    matchLabels:
+      app: otel-agent
+  template:
+    metadata:
+      labels:
+        app: otel-agent
+    spec:
+      serviceAccountName: otel-agent
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet # keep resolving *.svc names with hostNetwork
+      tolerations:
+        - operator: Exists
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+      containers:
+        - name: collector
+          image: docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION}
+          command: ["/usr/share/elastic-agent/elastic-agent"]
+          args: ["otel", "--config=/conf/config.yaml"]
+          env:
+            - name: ELASTIC_AGENT_OTEL
+              value: '"true"'
+            - name: OTEL_K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - containerPort: 13133
+              name: health
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          resources:
+            requests:
+              cpu: 100m
+              memory: 200Mi
+            limits:
+              memory: 500Mi
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+            - name: hostfs
+              mountPath: /hostfs
+              readOnly: true
+              mountPropagation: HostToContainer
+      volumes:
+        - name: config
+          configMap:
+            name: otel-agent-config
+        - name: hostfs
+          hostPath:
+            path: /

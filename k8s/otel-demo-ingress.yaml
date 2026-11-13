@@ -1,0 +1,16 @@
+# The demo frontend has no base path, so it is exposed on its own host
+# (https://otel.localhost) instead of a /otel prefix.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: otel-demo
+  namespace: otel-demo
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`otel.localhost`)
+      kind: Rule
+      services:
+        - name: frontend-proxy
+          port: 8080

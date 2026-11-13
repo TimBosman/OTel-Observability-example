@@ -1,0 +1,15 @@
+default:
+  envOverrides:
+    - name: OTEL_COLLECTOR_NAME
+      value: otel-gateway.otel.svc.cluster.local
+
+opentelemetry-collector:
+  enabled: false
+jaeger:
+  enabled: false
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+opensearch:
+  enabled: false

@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eck-trial-license
+  namespace: elastic-system
+  labels:
+    license.k8s.elastic.co/type: enterprise_trial
+  annotations:
+    elastic.co/eula: accepted
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: elasticsearch
+spec:
+  auth:
+    fileRealm:
+      - secretName: training-user
+  version: ${ELASTIC_VERSION}
+  nodeSets:
+    - name: default
+      count: 3
+      config:
+        node.store.allow_mmap: false
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: kibana
+spec:
+  version: ${ELASTIC_VERSION}
+  count: 1
+  elasticsearchRef:
+    name: elasticsearch
+  config:
+    xpack.spaces.defaultSolution: oblt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kibana
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: PathPrefix(`/`)
+      kind: Rule
+      services:
+        - name: kibana-kb-http
+          port: 5601
+          scheme: https
+          serversTransport: kibana-transport
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: kibana-transport
+spec:
+  serverName: kibana-kb-http.default.svc
+  rootCAs:
+    - secret: kibana-kb-http-certs-public

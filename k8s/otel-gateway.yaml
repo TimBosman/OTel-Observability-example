@@ -1,0 +1,118 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-gateway
+  namespace: otel
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-gateway
+rules:
+  # k8sattributes processor
+  - apiGroups: [""]
+    resources: ["pods", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets", "deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-gateway
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-gateway
+subjects:
+  - kind: ServiceAccount
+    name: otel-gateway
+    namespace: otel
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-gateway
+  namespace: otel
+  labels:
+    app: otel-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-gateway
+  template:
+    metadata:
+      labels:
+        app: otel-gateway
+    spec:
+      serviceAccountName: otel-gateway
+      containers:
+        - name: collector
+          image: docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION}
+          command: ["/usr/share/elastic-agent/elastic-agent"]
+          args: ["otel", "--config=/conf/config.yaml"]
+          env:
+            - name: ELASTIC_AGENT_OTEL
+              value: '"true"'
+            - name: ELASTIC_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: elastic-secret-otel
+                  key: elastic_endpoint
+            - name: ELASTIC_USER
+              value: elastic
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elastic-secret-otel
+                  key: elastic_password
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 4319
+              name: otlp-agent
+            - containerPort: 13133
+              name: health
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+          resources:
+            requests:
+              cpu: 200m
+              memory: 400Mi
+            limits:
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+      volumes:
+        - name: config
+          configMap:
+            name: otel-gateway-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-gateway
+  namespace: otel
+spec:
+  selector:
+    app: otel-gateway
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: otlp-agent
+      port: 4319
+      targetPort: 4319

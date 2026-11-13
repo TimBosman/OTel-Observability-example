@@ -1,0 +1,116 @@
+receivers:
+  kubeletstats:
+    auth_type: serviceAccount
+    collection_interval: 60s
+    endpoint: ${env:OTEL_K8S_NODE_NAME}:10250
+    node: ${env:OTEL_K8S_NODE_NAME}
+    insecure_skip_verify: true
+    k8s_api_config:
+      auth_type: serviceAccount
+    extra_metadata_labels:
+      - container.id
+    metrics:
+      k8s.pod.memory.node.utilization: {enabled: true}
+      k8s.pod.cpu.node.utilization: {enabled: true}
+      k8s.container.cpu_limit_utilization: {enabled: true}
+      k8s.pod.cpu_limit_utilization: {enabled: true}
+      k8s.container.cpu_request_utilization: {enabled: true}
+      k8s.container.memory_limit_utilization: {enabled: true}
+      k8s.pod.memory_limit_utilization: {enabled: true}
+      k8s.container.memory_request_utilization: {enabled: true}
+      k8s.node.uptime: {enabled: true}
+      k8s.node.cpu.usage: {enabled: true}
+      k8s.pod.cpu.usage: {enabled: true}
+  hostmetrics:
+    collection_interval: 60s
+    root_path: /hostfs
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization: {enabled: true}
+          system.cpu.logical.count: {enabled: true}
+      memory:
+        metrics:
+          system.memory.utilization: {enabled: true}
+      network: {}
+      processes: {}
+      load: {}
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          match_type: regexp
+          mount_points: [/dev/*, /proc/*, /sys/*, /run/k3s/containerd/*, /var/lib/docker/*, /var/lib/kubelet/*, /snap/*]
+        exclude_fs_types:
+          match_type: strict
+          fs_types: [autofs, binfmt_misc, bpf, cgroup2, configfs, debugfs, devpts, devtmpfs, fusectl, hugetlbfs, iso9660, mqueue, nsfs, overlay, proc, procfs, pstore, rpc_pipefs, securityfs, selinuxfs, squashfs, sysfs, tracefs]
+
+processors:
+  batch: {}
+  k8s_attributes:
+    filter:
+      node_from_env_var: OTEL_K8S_NODE_NAME
+    passthrough: false
+    pod_association:
+      - sources: [{from: resource_attribute, name: k8s.pod.ip}]
+      - sources: [{from: resource_attribute, name: k8s.pod.uid}]
+      - sources:
+          - {from: resource_attribute, name: k8s.pod.name}
+          - {from: resource_attribute, name: k8s.namespace.name}
+      - sources: [{from: connection}]
+    extract:
+      metadata:
+        - k8s.namespace.name
+        - k8s.deployment.name
+        - k8s.replicaset.name
+        - k8s.statefulset.name
+        - k8s.daemonset.name
+        - k8s.cronjob.name
+        - k8s.job.name
+        - k8s.node.name
+        - k8s.pod.name
+        - k8s.pod.ip
+        - k8s.pod.uid
+        - k8s.pod.start_time
+  resourcedetection/env:
+    detectors: [env]
+    timeout: 2s
+    override: false
+  resourcedetection/system:
+    detectors: [system]
+    system:
+      hostname_sources: [os]
+      resource_attributes:
+        host.name: {enabled: true}
+        host.id: {enabled: false}
+        host.arch: {enabled: true}
+        os.description: {enabled: true}
+        os.type: {enabled: true}
+  resource/hostname:
+    attributes:
+      - key: host.name
+        from_attribute: k8s.node.name
+        action: upsert
+
+exporters:
+  # Forward everything to the gateway, which owns the connection to Elastic.
+  otlp/gateway:
+    endpoint: otel-gateway.otel.svc.cluster.local:4319
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics/node:
+      receivers: [kubeletstats, hostmetrics]
+      processors:
+        - k8s_attributes
+        - resourcedetection/env
+        - resourcedetection/system
+        - resource/hostname
+        - batch
+      exporters: [otlp/gateway]
