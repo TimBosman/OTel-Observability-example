@@ -1,0 +1,33 @@
+receivers:
+  # Cluster-level metrics (k8s.node.condition_ready, k8s.node.allocatable_*, pod phase, ...).
+  # Must run as a single instance, otherwise every datapoint is duplicated.
+  k8s_cluster:
+    auth_type: serviceAccount
+    collection_interval: 60s
+    node_conditions_to_report: [Ready, MemoryPressure, DiskPressure, PIDPressure]
+    allocatable_types_to_report: [cpu, memory, ephemeral-storage, pods]
+
+processors:
+  batch: {}
+  resourcedetection/env:
+    detectors: [env]
+    timeout: 2s
+    override: false
+
+exporters:
+  otlp/gateway:
+    endpoint: otel-gateway.otel.svc.cluster.local:4319
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics/cluster:
+      receivers: [k8s_cluster]
+      processors: [resourcedetection/env, batch]
+      exporters: [otlp/gateway]

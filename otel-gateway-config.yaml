@@ -13,9 +13,8 @@ receivers:
         endpoint: 0.0.0.0:4319
 
 processors:
-  cumulative_to_delta: {} # the ES exporter drops cumulative histograms
-  elasticapm: {} # enriches spans/logs with attributes the Applications UI expects
-  # Don't split metric requests: can cause version_conflict_engine_exception in TSDB
+  cumulative_to_delta: {}  # the ES exporter drops cumulative histograms
+  elasticapm: {}  # enriches spans/logs with attributes for the Applications UI
   batch/metrics:
     send_batch_max_size: 0
     timeout: 1s
@@ -55,12 +54,12 @@ exporters:
     user: ${env:ELASTIC_USER}
     password: ${env:ELASTIC_PASSWORD}
     tls:
-      insecure_skip_verify: true # ECK self-signed CA; mount the CA instead for production
+      insecure_skip_verify: true # mount the CA instead for production
     mapping:
       mode: otel
 
 connectors:
-  elasticapm: {} # aggregates traces into the APM metrics the Applications UI reads
+  elasticapm: {}  # aggregates traces into the APM metrics for Kibana
 
 extensions:
   health_check:

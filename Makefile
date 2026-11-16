@@ -14,7 +14,7 @@ eck:
 		--set image.tag=3.5.0
 
 elastic-stack:
-	kubectl create secret generic training-user --from-literal username=training --from-literal password=nonprodpwd --from-literal roles=superuser
+	kubectl create secret generic training-user --from-literal username=training --from-literal password=nonprodpwd --from-literal roles=superuser || true
 	$(SET_VERSION) k8s/elastic-stack.yaml | kubectl apply -f -
 
 ELASTIC_ENDPOINT ?= https://elasticsearch-es-http.default.svc:9200
@@ -29,7 +29,7 @@ otel-gateway:
 		--from-literal=elastic_password="$$(kubectl get secret elasticsearch-es-elastic-user -o go-template='{{.data.elastic | base64decode}}')" \
 		--dry-run=client -o yaml | kubectl apply -f -
 	kubectl create configmap otel-gateway-config -n otel \
-		--from-file=config.yaml=k8s/otel-gateway-config.yaml \
+		--from-file=config.yaml=otel-gateway-config.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 	$(SET_VERSION) k8s/otel-gateway.yaml | kubectl apply -f -
 	kubectl -n otel rollout restart deploy/otel-gateway
@@ -38,12 +38,22 @@ otel-gateway:
 otel-agent:
 	kubectl create namespace otel || true
 	kubectl create configmap otel-agent-config -n otel \
-		--from-file=config.yaml=k8s/otel-agent-config.yaml \
+		--from-file=config.yaml=otel-agent-config.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 	$(SET_VERSION) k8s/otel-agent.yaml | kubectl apply -f -
 	kubectl -n otel rollout restart ds/otel-agent
 
-otel-collector: otel-gateway otel-agent
+# Cluster receiver: single-replica Deployment running k8s_cluster (node conditions, allocatable
+# resources, ...). Must not be scaled or run per node, or the metrics get duplicated.
+otel-cluster:
+	kubectl create namespace otel || true
+	kubectl create configmap otel-cluster-config -n otel \
+		--from-file=config.yaml=otel-cluster-config.yaml \
+		--dry-run=client -o yaml | kubectl apply -f -
+	$(SET_VERSION) k8s/otel-cluster.yaml | kubectl apply -f -
+	kubectl -n otel rollout restart deploy/otel-cluster
+
+otel-collector: otel-gateway otel-agent otel-cluster
 
 # OpenTelemetry Demo, sending all telemetry to the collector in the otel namespace.
 otel-demo:
