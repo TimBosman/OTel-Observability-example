@@ -63,12 +63,9 @@ spec:
         runAsGroup: 0
       containers:
         - name: collector
-          image: docker.elastic.co/elastic-agent/elastic-agent:${ELASTIC_VERSION}
-          command: ["/usr/share/elastic-agent/elastic-agent"]
-          args: ["otel", "--config=/conf/config.yaml"]
+          image: otel/opentelemetry-collector-contrib:${OTEL_VERSION}
+          args: ["--config=/conf/config.yaml"]
           env:
-            - name: ELASTIC_AGENT_OTEL
-              value: '"true"'
             - name: OTEL_K8S_NODE_NAME
               valueFrom:
                 fieldRef:

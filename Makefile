@@ -1,5 +1,7 @@
 ELASTIC_VERSION ?= 9.5.6
-SET_VERSION = sed 's/$${ELASTIC_VERSION}/$(ELASTIC_VERSION)/g'
+# Upstream OpenTelemetry Collector (contrib) used by the agent and cluster collectors.
+OTEL_VERSION ?= 0.139.0
+SET_VERSION = sed -e 's/$${ELASTIC_VERSION}/$(ELASTIC_VERSION)/g' -e 's/$${OTEL_VERSION}/$(OTEL_VERSION)/g'
 
 ingress-controller:
 	helm repo add traefik https://traefik.github.io/charts

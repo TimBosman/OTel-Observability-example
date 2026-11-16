@@ -13,12 +13,12 @@ receivers:
         endpoint: 0.0.0.0:4319
 
 processors:
-  cumulative_to_delta: {}  # the ES exporter drops cumulative histograms
+  cumulativetodelta: {}  # the ES exporter drops cumulative histograms
   elasticapm: {}  # enriches spans/logs with attributes for the Applications UI
   batch/metrics:
     send_batch_max_size: 0
     timeout: 1s
-  k8s_attributes:
+  k8sattributes:
     passthrough: false
     pod_association:
       - sources: [{from: resource_attribute, name: k8s.pod.ip}]
@@ -74,11 +74,11 @@ service:
       exporters: [elasticsearch/otel]
     metrics/otlp:
       receivers: [otlp]
-      processors: [cumulative_to_delta, batch/metrics, k8s_attributes, resourcedetection/env]
+      processors: [cumulativetodelta, batch/metrics, k8sattributes, resourcedetection/env]
       exporters: [elasticsearch/otel]
     traces:
       receivers: [otlp]
-      processors: [batch/metrics, k8s_attributes, resourcedetection/env, elasticapm]
+      processors: [batch/metrics, k8sattributes, resourcedetection/env, elasticapm]
       exporters: [elasticapm, elasticsearch/otel]
     metrics/apm:
       receivers: [elasticapm]
@@ -86,5 +86,5 @@ service:
       exporters: [elasticsearch/otel]
     logs:
       receivers: [otlp]
-      processors: [batch/metrics, k8s_attributes, resourcedetection/env]
+      processors: [batch/metrics, k8sattributes, resourcedetection/env]
       exporters: [elasticsearch/otel]

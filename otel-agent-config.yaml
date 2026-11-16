@@ -46,7 +46,7 @@ receivers:
 
 processors:
   batch: {}
-  k8s_attributes:
+  k8sattributes:
     filter:
       node_from_env_var: OTEL_K8S_NODE_NAME
     passthrough: false
@@ -108,7 +108,7 @@ service:
     metrics/node:
       receivers: [kubeletstats, hostmetrics]
       processors:
-        - k8s_attributes
+        - k8sattributes
         - resourcedetection/env
         - resourcedetection/system
         - resource/hostname
