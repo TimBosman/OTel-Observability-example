@@ -27,6 +27,13 @@ processors:
           - attributes["upstream_cluster"] != nil
         statements:
           - set(attributes["peer.service"], attributes["upstream_cluster"])
+  # Route logs (only) to the logs.otel wired stream
+  transform/logs-otel-stream:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(attributes["elasticsearch.index"], "logs.otel")
   batch/metrics:
     send_batch_max_size: 0
     timeout: 1s
@@ -99,9 +106,9 @@ service:
     # Pod logs from the agents are already enriched by their k8sattributes processor
     logs/agent:
       receivers: [otlp/agent]
-      processors: [batch/metrics]
+      processors: [batch/metrics, transform/logs-otel-stream]
       exporters: [elasticsearch/otel]
     logs:
       receivers: [otlp]
-      processors: [batch/metrics, k8sattributes, resourcedetection/env]
+      processors: [batch/metrics, k8sattributes, resourcedetection/env, transform/logs-otel-stream]
       exporters: [elasticsearch/otel]
