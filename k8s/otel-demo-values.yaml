@@ -13,3 +13,10 @@ grafana:
   enabled: false
 opensearch:
   enabled: false
+
+components:
+  flagd:
+    # The chart default (75Mi) gets flagd OOMKilled, so calls from ad time out.
+    resources:
+      limits:
+        memory: 200Mi
