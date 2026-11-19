@@ -15,6 +15,18 @@ receivers:
 processors:
   cumulativetodelta: {}  # the ES exporter drops cumulative histograms
   elasticapm: {}  # enriches spans/logs with attributes for the Applications UI
+  # Envoy (frontend-proxy) egress spans carry no destination, only the upstream
+  # cluster name. Set peer.service so the service map can draw the edge.
+  transform/envoy-peer:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        conditions:
+          - resource.attributes["service.name"] == "frontend-proxy"
+          - kind == SPAN_KIND_CLIENT
+          - attributes["upstream_cluster"] != nil
+        statements:
+          - set(attributes["peer.service"], attributes["upstream_cluster"])
   batch/metrics:
     send_batch_max_size: 0
     timeout: 1s
@@ -78,7 +90,7 @@ service:
       exporters: [elasticsearch/otel]
     traces:
       receivers: [otlp]
-      processors: [batch/metrics, k8sattributes, resourcedetection/env, elasticapm]
+      processors: [batch/metrics, k8sattributes, resourcedetection/env, transform/envoy-peer, elasticapm]
       exporters: [elasticapm, elasticsearch/otel]
     metrics/apm:
       receivers: [elasticapm]
