@@ -90,7 +90,13 @@ spec:
               mountPath: /hostfs
               readOnly: true
               mountPropagation: HostToContainer
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
       volumes:
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
         - name: config
           configMap:
             name: otel-agent-config
